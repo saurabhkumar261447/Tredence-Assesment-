@@ -18,16 +18,32 @@ This project solves those fundamental challenges from first mathematical princip
 
 ---
 
+## Tools & Technologies Used
+
+This implementation strictly complies with zero-framework restrictions: **no deep learning frameworks (PyTorch, TensorFlow, JAX, Keras, Hugging Face) or automated autodiff/pruning libraries are used for any part of the core engine, layers, optimizer, or training pipeline**[cite: 2].
+
+| Tool / Technology | Category | Purpose & Implementation Scope |
+| :--- | :--- | :--- |
+| **Python (3.10+)**[cite: 5, 9, 11] | Core Language | Powers the computational graph, closure-based backward functions, operator overloading, and module architecture[cite: 2, 29]. |
+| **NumPy (`>=1.24.0`)**[cite: 11] | Numerical Engine | Powers raw $n$-dimensional memory buffers (`ndarray`), memory views, vectorized matrix multiplications (`matmul`), and linear algebra operations without high-level framework wrappers[cite: 2, 28]. |
+| **Scikit-Learn (`>=1.2.0`)**[cite: 11] | Dataset Utility | **Permitted utility only:** Used strictly to fetch the standard 8x8 handwritten Digits benchmark (`load_digits`)[cite: 2, 9, 18]. Completely absent from models, forward passes, gradients, or optimization[cite: 2]. |
+| **Matplotlib (`>=3.7.0`)**[cite: 11] | Visualization | Generates the multi-seed Sparsity-Accuracy Pareto curve with error bars (`pareto_curve.png`) comparing Taylor Saliency against Magnitude Pruning[cite: 4, 12]. |
+| **Pytest (`>=7.0.0`)**[cite: 11] | Testing & Verification | Automated test runner executing finite-difference numerical gradient checks (`test_gradcheck.py`) and masked weight optimizer state isolation tests (`test_masking_optimizer.py`)[cite: 9, 15, 16]. |
+| **Setuptools (`>=61.0`) / PEP 621**[cite: 11] | Packaging & Build | Standardized `pyproject.toml` configuration enabling clean dependency resolution and editable local installation (`pip install -e .`)[cite: 9, 11]. |
+| **Python Standard Library (`json`, `time`, `os`)** | System & Profiling | Benchmarking wall-clock sparse inference latency, calculating true FLOP counts, and persisting raw Pareto metrics to disk (`pareto_results.json`)[cite: 12]. |
+
+---
+
 ## Core Architecture & Deep-Dive Explanations
 
 ### 1. Reverse-Mode Autodiff Engine (`engine/`)
 
 The core compute abstraction is built around the `Tensor` class and functional primitives defined in `engine/ops.py`[cite: 2, 9, 30]:
 
-* **Computational Graph (DAG) Tracking:** Every intermediate operation wraps data in a `Tensor` and stores backward closures alongside directed references to its parent tensors[cite: 2, 3, 29].
-* **Topological Sort via Depth-First Search (DFS):** Reverse-mode backpropagation requires executing backward operations in the exact reverse order of dependency[cite: 2, 29]. When `.backward()` is called on a scalar loss, the engine executes a recursive post-order traversal to build an ordered linear tape of dependencies before invoking local vector-Jacobian products (VJPs)[cite: 2, 29].
-* **Exact Gradient Unbroadcasting:** Binary operations frequently apply NumPy broadcasting (e.g., adding a bias vector of shape `(D,)` to an activation batch of shape `(N, D)`)[cite: 2, 29]. During the reverse pass, gradients naturally take the broadcasted shape `(N, D)`. Our `unbroadcast()` utility dynamically detects dimension additions and singleton axis expansions, summing across those axes to accumulate mathematically precise gradients back into the source tensor[cite: 2, 29].
-* **Numerically Stable Softmax Cross-Entropy:** Directly composing $\log(\text{softmax}(z))$ introduces severe floating-point underflow/overflow[cite: 2, 28]. We implement a fused softmax cross-entropy primitive that subtracts row-wise maximums ($\hat{z}_i = z_i - \max(z)$), normalizes exponentials with dynamic epsilons, and directly derives the analytic gradient:
+- **Computational Graph (DAG) Tracking:** Every intermediate operation wraps data in a `Tensor` and stores backward closures alongside directed references to its parent tensors[cite: 2, 3, 29].
+- **Topological Sort via Depth-First Search (DFS):** Reverse-mode backpropagation requires executing backward operations in the exact reverse order of dependency[cite: 2, 29]. When `.backward()` is called on a scalar loss, the engine executes a recursive post-order traversal to build an ordered linear tape of dependencies before invoking local vector-Jacobian products (VJPs)[cite: 2, 29].
+- **Exact Gradient Unbroadcasting:** Binary operations frequently apply NumPy broadcasting (e.g., adding a bias vector of shape `(D,)` to an activation batch of shape `(N, D)`)[cite: 2, 29]. During the reverse pass, gradients naturally take the broadcasted shape `(N, D)`. Our `unbroadcast()` utility dynamically detects dimension additions and singleton axis expansions, summing across those axes to accumulate mathematically precise gradients back into the source tensor[cite: 2, 29].
+- **Numerically Stable Softmax Cross-Entropy:** Directly composing $\log(\text{softmax}(z))$ introduces severe floating-point underflow/overflow[cite: 2, 28]. We implement a fused softmax cross-entropy primitive that subtracts row-wise maximums ($\hat{z}_i = z_i - \max(z)$), normalizes exponentials with dynamic epsilons, and directly derives the analytic gradient:
   $$\frac{\partial \mathcal{L}}{\partial z_i} = \frac{p_i - y_i}{N}$$
   preventing catastrophic cancellation and ensuring zero-NaN training stability[cite: 2, 3, 28].
 
@@ -88,9 +104,9 @@ Connections with the smallest $S_{ij}$ score contribute the least to objective m
 One-shot pruning shocks the parameter manifold, often causing unrecoverable accuracy degradation[cite: 3, 4]. We implement a cubic polynomial decay ramp (Zhu & Gupta, 2017)[cite: 21]:
 $$s_t = s_f + (s_i - s_f) \left( 1 - \frac{t - t_0}{t_f - t_0} \right)^3$$
 where:
-* $s_i = 0.0$ (initial dense model)[cite: 13, 21]
-* $s_f$ = target sparsity (e.g., $0.90$ for 90% connection removal)[cite: 13, 21]
-* $t_0, t_f$ = start and end optimization steps for pruning[cite: 21]
+- $s_i = 0.0$ (initial dense model)[cite: 13, 21]
+- $s_f$ = target sparsity (e.g., $0.90$ for 90% connection removal)[cite: 13, 21]
+- $t_0, t_f$ = start and end optimization steps for pruning[cite: 21]
 
 This gradually phases in sparsity, giving surviving weights ample gradient steps to co-adapt and recover capacity[cite: 3, 4].
 
@@ -104,10 +120,10 @@ To prevent permanent architectural dead-ends caused by early pruning mistakes, t
 Multiplying an activation matrix by a dense matrix filled with zeros (`W * 0.0`) still runs at $\mathcal{O}(N \cdot D_{\text{in}} \cdot D_{\text{out}})$ FLOPs on CPU/GPU hardware[cite: 4, 25]. Claiming this as an inference speedup is fundamentally misleading[cite: 4].
 
 To validate true computational reduction[cite: 4]:
-* `Linear.forward_sparse_inference()` unpacks non-zero connections in Compressed Sparse Row/Column formats, computing inner dot products **only** over active input indices[cite: 25]:
+- `Linear.forward_sparse_inference()` unpacks non-zero connections in Compressed Sparse Row/Column formats, computing inner dot products **only** over active input indices[cite: 25]:
   $$\text{FLOPs}_{\text{dense}} = 2 \cdot D_{\text{in}} \cdot D_{\text{out}}$$
   $$\text{FLOPs}_{\text{sparse}} = 2 \cdot \Vert{}M\Vert{}_0$$
-* At 90% sparsity, arithmetic operations scale down by an honest $10\times$ factor, demonstrating genuine hardware cost reduction.
+- At 90% sparsity, arithmetic operations scale down by an honest $10\times$ factor, demonstrating genuine hardware cost reduction.
 
 ---
 
