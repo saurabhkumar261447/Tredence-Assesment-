@@ -65,32 +65,33 @@ python experiments/run_part4_pareto.py
 
 ### what is inside this file
 
+
 aqua_self_pruning/
-├── pyproject.toml # Build & dependency specifications
-├── README.md # Full setup & reproduction documentation
-├── DESIGN.md # Mathematical derivations & whiteboard defense
-├── engine/ # Part 1: Autodiff Engine
-│ ├── **init**.py
-│ ├── tensor.py # Tensor DAG, reverse-mode autodiff, unbroadcasting
-│ └── ops.py # Matmul, elementwise, GELU/ReLU/Tanh, stable Cross-Entropy
-├── nn/ # Part 2: Layers & Optimizer
-│ ├── **init**.py
-│ ├── module.py # Module & Parameter abstraction
-│ ├── layers.py # Linear (dense + true sparse inference) & Sequential MLP
-│ └── optim.py # Mask-aware Adam optimizer (solves momentum drift)
-├── prune/ # Part 3: Self-Pruning Engine
-│ ├── **init**.py
-│ ├── criteria.py # 1st-Order Taylor saliency vs. magnitude scoring
-│ ├── scheduler.py # Cubic polynomial sparsity schedule ramp
-│ └── mask.py # Self-pruner with dynamic gradient connection regrowth
-├── train/ # Training Pipeline
-│ ├── **init**.py
-│ ├── dataset.py # Permitted dataset loading & feature normalization
-│ └── engine.py # Mini-batch training loop & evaluation
-├── tests/ # Testing Suite
-│ ├── test_gradcheck.py # Finite-difference gradient verification across all ops
-│ └── test_masking_optimizer.py # Critical test for masked weights & Adam moment isolation
-└── experiments/ # Part 4 & Reproductions
-├── run_part2_dense.py # Part 2: Dense baseline training
-├── run_part3_prune.py # Part 3: 90% Self-pruning run
-└── run_part4_pareto.py # Part 4: Pareto sweep, FLOP reduction, and plot generation
+├── pyproject.toml              # Build & dependency specifications[cite: 11]
+├── README.md                   # Full setup & reproduction documentation[cite: 9]
+├── DESIGN.md                   # Mathematical derivations & whiteboard defense
+├── engine/                     # Part 1: Reverse-Mode Autodiff Engine[cite: 2]
+│   ├── __init__.py             # Exposes Tensor and primitive operations[cite: 30]
+│   ├── tensor.py               # Tensor DAG node, topological sort, unbroadcasting[cite: 29]
+│   └── ops.py                  # Matmul, elementwise, GELU/ReLU/Tanh, stable Cross-Entropy[cite: 28]
+├── nn/                         # Part 2: Layers & Optimizer[cite: 3]
+│   ├── __init__.py             # Exposes Module, Parameter, Linear, MLP, Adam[cite: 27]
+│   ├── module.py               # Module and Parameter base abstractions[cite: 26]
+│   ├── layers.py               # Linear (dense + sparse inference) & MLP container[cite: 25]
+│   └── optim.py                # Mask-aware Adam optimizer with state isolation[cite: 24]
+├── prune/                      # Part 3: Self-Pruning Engine[cite: 3, 4]
+│   ├── __init__.py             # Exposes SelfPruner, criteria, and schedules[cite: 23]
+│   ├── criteria.py             # Taylor Saliency and Magnitude scoring[cite: 22]
+│   ├── scheduler.py            # Polynomial cubic sparsity schedule ramp[cite: 21]
+│   └── mask.py                 # Self-pruner with dynamic gradient connection regrowth[cite: 20]
+├── train/                      # Training Pipeline[cite: 3]
+│   ├── __init__.py             # Exposes dataset loaders and training step runner[cite: 19]
+│   ├── dataset.py              # Digits dataset normalization and train/test split[cite: 18]
+│   └── engine.py               # Mini-batch gradient step and evaluation loops[cite: 17]
+├── tests/                      # Automated Verification Suites[cite: 2, 3]
+│   ├── test_gradcheck.py       # Finite-difference numerical gradient verification[cite: 16]
+│   └── test_masking_optimizer.py # Masked weight gradient zeroing & momentum buffer test[cite: 15]
+└── experiments/                # Executable Reproduction Scripts[cite: 3, 4]
+    ├── run_part2_dense.py      # Part 2: Dense baseline training script[cite: 14]
+    ├── run_part3_prune.py      # Part 3: 90% Self-pruning training script[cite: 13]
+    └── run_part4_pareto.py     # Part 4: Pareto sweep, FLOP reduction, and plot generation[cite: 12]
